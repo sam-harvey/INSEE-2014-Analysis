@@ -7,7 +7,7 @@
 # 
 # https://www.kaggle.com/etiennelq/french-employment-by-town
 
-# In[190]:
+# In[1]:
 
 
 #chargement des bibliothèques logicielles
@@ -41,7 +41,7 @@ from IPython.core.interactiveshell import InteractiveShell
 InteractiveShell.ast_node_interactivity = "all"
 
 
-# In[2]:
+# In[4]:
 
 
 get_ipython().magic('qtconsole')
@@ -49,7 +49,9 @@ get_ipython().magic('qtconsole')
 
 # Data Preparation
 
-# In[14]:
+# base_etablissement_par_tranche_effectif.csv
+
+# In[5]:
 
 
 #Check tranche data
@@ -87,7 +89,9 @@ print('non-numeric departements:' + str(counter))
 np.sum(df_tranche['E14TST'] == df_tranche.iloc[:,5:14].       apply(np.sum, axis = 1)) == df_tranche.shape[0]
 
 
-# In[80]:
+# name_geographic_information.csv
+
+# In[7]:
 
 
 #Check geo data 
@@ -128,11 +132,11 @@ def num_castable(x):
 df_geo[np.logical_not(df_geo.codes_postaux.apply(num_castable))]
 
 #Split and convert to float
-#Need length for trailing white space
+#length condition deals with trailing white space
 df_geo.codes_postaux = df_geo.codes_postaux.apply(lambda x: ([float(i) for i in x.split(" ") if len(i) > 0]))
 
 #Do we need this?
-df_geo.code_postale_max = df_geo.codes_postaux.apply(max)
+df_geo['code_postale_max'] = df_geo.codes_postaux.apply(max)
 
 #This has strings in it
 df_geo[df_geo.numéro_département == '2A']
@@ -153,7 +157,7 @@ def decimal_translate(x):
     except:
         #French decimal
         x = re.sub(",", ".", x)
-        #For where they are using - as null values
+        #For where they are using '-' as a null value
         if x == '-':
             x = float("NaN")
         return(float(x))
@@ -161,7 +165,71 @@ def decimal_translate(x):
 df_geo.longitude = df_geo.longitude.apply(decimal_translate)
 
 #There are some with latitude but not longitude
-df_geo[np.isnan(df_geo.latitude) * np.logical_not((np.isnan(df_geo.longitude)))]
+df_geo[np.isnan(df_geo.latitude) & np.logical_not((np.isnan(df_geo.longitude)))]
+
+
+# net_salary_per_town_categories.csv
+
+# In[68]:
+
+
+df_salaire.dtypes
+
+#Unique ID is unique
+df_salaire.CODGEO.nunique() == df_salaire.shape[0]
+df_salaire.LIBGEO.nunique() == df_salaire.shape[0]
+
+#Town names are not unique.
+df_salaire.LIBGEO.value_counts()
+
+df_salaire.describe()
+
+#SNHMF1814 : mean net salary per hour for women between 18-25 years old
+#Why does this have the highest max of all columns?
+
+#The max is a tiny village. Is there one really high earner that has skewed this?
+#This value is also reflected in SNHM1814
+#Well there's not much to do about this
+df_salaire[df_salaire.SNHMH1814 == max(df_salaire.SNHMH1814)]
+
+
+# population.csv
+
+# In[73]:
+
+
+df_population.describe(include = 'all')
+
+df_population.head(5)
+
+#This is useless
+df_population.NIVGEO.unique()
+
+#Categorical Variables
+df_population['SEXE'] = df_population['SEXE'].astype('category')
+df_population['SEXE'].cat.categories = ["Male", "Female"]
+
+# MOCO : cohabitation mode :
+
+#     11 = children living with two parents
+#     12 = children living with one parent
+#     21 = adults living in couple without child
+#     22 = adults living in couple with children
+#     23 = adults living alone with children
+#     31 = persons not from family living in the home
+#     32 = persons living alone
+
+df_population['MOCO'] = df_population['MOCO'].astype('category')
+df_population['MOCO'].cat.categories = [
+"children living with two parents",
+"children living with one parent",
+"adults living in couple without child",
+"adults living in couple with children",
+"adults living alone with children",
+"persons not from family living in the home",
+"persons living alone"
+]
+
 
 
 # In[3]:
