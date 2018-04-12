@@ -33,7 +33,7 @@ df_geo = pd.read_csv('data/name_geographic_information.csv')
 with open('./data/communes.geojson') as f:
     json_communes = json.load(f)
 
-with open('./data/communes.geojson') as f:
+with open('./data/departements.geojson') as f:
     json_departements = json.load(f)
 
 #Display all outputs from cells
@@ -41,7 +41,7 @@ from IPython.core.interactiveshell import InteractiveShell
 InteractiveShell.ast_node_interactivity = "all"
 
 
-# In[4]:
+# In[2]:
 
 
 get_ipython().magic('qtconsole')
@@ -51,7 +51,7 @@ get_ipython().magic('qtconsole')
 
 # base_etablissement_par_tranche_effectif.csv
 
-# In[5]:
+# In[3]:
 
 
 #Check tranche data
@@ -91,7 +91,7 @@ np.sum(df_tranche['E14TST'] == df_tranche.iloc[:,5:14].       apply(np.sum, axis
 
 # name_geographic_information.csv
 
-# In[7]:
+# In[4]:
 
 
 #Check geo data 
@@ -170,7 +170,7 @@ df_geo[np.isnan(df_geo.latitude) & np.logical_not((np.isnan(df_geo.longitude)))]
 
 # net_salary_per_town_categories.csv
 
-# In[68]:
+# In[5]:
 
 
 df_salaire.dtypes
@@ -195,7 +195,7 @@ df_salaire[df_salaire.SNHMH1814 == max(df_salaire.SNHMH1814)]
 
 # population.csv
 
-# In[73]:
+# In[6]:
 
 
 df_population.describe(include = 'all')
@@ -247,4 +247,90 @@ df_population.describe()
 
 df_geo.head(5)
 df_geo.describe()
+
+
+# geoJSON files
+
+# In[95]:
+
+
+#https://gis.stackexchange.com/questions/90553/fiona-get-each-feature-extent-bounds
+#Get the bounding boxes for each departement
+
+def explode(coords):
+    """Explode a GeoJSON geometry's coordinates object and yield coordinate tuples.
+    As long as the input is conforming, the type of the geometry doesn't matter."""
+    for e in coords:
+        if isinstance(e, (numbers.Number)):
+            yield coords
+            break
+        else:
+            for f in explode(e):
+                yield f
+
+def bbox(f):
+    x, y = zip(*list(explode(f['geometry']['coordinates'])))
+    return min(x), min(y), max(x), max(y)
+
+#Create DF with bounding boxes for each departement
+df_bbox_departements = pd.DataFrame(columns = ['nom',
+                                              'code',
+                                              'bbox'])
+
+for i in json_departements['features']:
+    df_bbox_departements = df_bbox_departements.append({'nom':i['properties']['nom'],
+                                 'code':i['properties']['code'],
+                                 'bbox':bbox(i)}, ignore_index = True)
+    
+df_bbox_departements["min_x"] = df_bbox_departements.bbox.apply(lambda x: x[0])
+df_bbox_departements["min_y"] = df_bbox_departements.bbox.apply(lambda x: x[1])
+df_bbox_departements["max_x"] = df_bbox_departements.bbox.apply(lambda x: x[2])
+df_bbox_departements["max_y"] = df_bbox_departements.bbox.apply(lambda x: x[3])
+
+df_bbox_departements
+
+df_bbox_departements.agg({'min_x':{'min_x':'min'},
+                         'min_y':{'min_y':'min'},
+                         'max_x':{'max_x':'max'},
+                         'max_y':{'max_y':'max'}})
+
+
+# In[84]:
+
+
+# Create one bounding box for France
+test = zip(df_bbox_departements.bbox)
+
+next(test)
+next(test)
+
+
+# In[7]:
+
+
+#Plot the departements
+#These are the French equivalent of our TAs
+
+map_departements = folium.Map(location=[48.864716, 2.349014])
+folium.GeoJson(data = json_departements,
+               name='features'
+              ).add_to(map_departements)
+
+list_departements = list(json_departements.values())
+
+map_departements.fit_bounds(feature.getBounds())
+
+
+# In[ ]:
+
+
+#Careful, this completely uses my ram/cpu
+#There are > 30,000 shapes
+
+# map_communes = folium.Map()
+# folium.GeoJson(data = json_communes,
+#                name='features'
+#               ).add_to(map_communes)
+
+# map_communes
 
