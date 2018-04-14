@@ -251,7 +251,7 @@ df_geo.describe()
 
 # geoJSON files
 
-# In[95]:
+# In[7]:
 
 
 #https://gis.stackexchange.com/questions/90553/fiona-get-each-feature-extent-bounds
@@ -287,25 +287,22 @@ df_bbox_departements["min_y"] = df_bbox_departements.bbox.apply(lambda x: x[1])
 df_bbox_departements["max_x"] = df_bbox_departements.bbox.apply(lambda x: x[2])
 df_bbox_departements["max_y"] = df_bbox_departements.bbox.apply(lambda x: x[3])
 
-df_bbox_departements
 
-df_bbox_departements.agg({'min_x':{'min_x':'min'},
+# In[25]:
+
+
+# Create one bounding box for France
+df_bbox_departements['dummy'] = 1
+
+df_bbox_france = df_bbox_departements.groupby('dummy').agg({'min_x':{'min_x':'min'},
                          'min_y':{'min_y':'min'},
                          'max_x':{'max_x':'max'},
                          'max_y':{'max_y':'max'}})
 
-
-# In[84]:
-
-
-# Create one bounding box for France
-test = zip(df_bbox_departements.bbox)
-
-next(test)
-next(test)
+df_bbox_france.reset_index()
 
 
-# In[7]:
+# In[57]:
 
 
 #Plot the departements
@@ -318,7 +315,17 @@ folium.GeoJson(data = json_departements,
 
 list_departements = list(json_departements.values())
 
-map_departements.fit_bounds(feature.getBounds())
+map_departements.fit_bounds(bounds = [
+    [
+     float(df_bbox_france['max_y']['max_y']),
+     float(df_bbox_france['max_x']['max_x'])
+    ],
+    [
+     float(df_bbox_france['min_y']['min_y']),
+    float(df_bbox_france['min_x']['min_x'])
+    ]])
+
+map_departements
 
 
 # In[ ]:
@@ -334,3 +341,5 @@ map_departements.fit_bounds(feature.getBounds())
 
 # map_communes
 
+
+# Analysis
