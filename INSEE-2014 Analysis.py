@@ -288,7 +288,7 @@ df_bbox_departements["max_x"] = df_bbox_departements.bbox.apply(lambda x: x[2])
 df_bbox_departements["max_y"] = df_bbox_departements.bbox.apply(lambda x: x[3])
 
 
-# In[25]:
+# In[10]:
 
 
 # Create one bounding box for France
@@ -302,7 +302,7 @@ df_bbox_france = df_bbox_departements.groupby('dummy').agg({'min_x':{'min_x':'mi
 df_bbox_france.reset_index()
 
 
-# In[57]:
+# In[11]:
 
 
 #Plot the departements
@@ -328,6 +328,39 @@ map_departements.fit_bounds(bounds = [
 map_departements
 
 
+# In[17]:
+
+
+#Test style functions
+def style_function(feature):
+    return {
+        'fillColor': '#ffaf00',
+        'color': 'blue',
+        'weight': 1.5,
+        'dashArray': '5, 5'
+    }
+
+
+def highlight_function(feature):
+    return {
+        'fillColor': '#ffaf00',
+        'color': 'green',
+        'weight': 3,
+        'dashArray': '5, 5'
+    }
+
+#https://github.com/python-visualization/folium/issues/497
+#Tooltips not supported from folium.GeoJson currently...
+map_departements = folium.Map(location=[48.864716, 2.349014])
+folium.GeoJson(data = json_departements,
+               name='features',
+               style_function = style_function,
+               highlight_function = highlight_function
+              ).add_to(map_departements)
+
+map_departements
+
+
 # In[ ]:
 
 
@@ -343,3 +376,27 @@ map_departements
 
 
 # Analysis
+
+# Distribution of firm sizes per departement
+
+# In[117]:
+
+
+#Create data for % in each firm size for each departement
+df_dep_percentage = df_tranche.set_index(['CODGEO', 'LIBGEO', 'REG', 'DEP']).stack().reset_index()
+df_dep_percentage = df_dep_percentage.rename(index = str,
+                             columns = {'level_4':'firm_size_code',
+                                        0:'value'})
+
+
+df_dep_percentage = df_dep_percentage.groupby(["DEP", "firm_size_code"]).sum().loc[:,"value"].reset_index().merge(df_dep_percentage.groupby(["DEP"]).sum().loc[:,"value"].reset_index(),
+      how = 'inner',
+      on = "DEP")
+
+df_dep_percentage = df_dep_percentage.rename(index = str,
+                            columns = {"value_x":'value',
+                            "value_y":'total'})
+
+df_dep_percentage["percentage"] = df_dep_percentage['value'] / df_dep_percentage['total']
+df_dep_percentage.head(10)
+
