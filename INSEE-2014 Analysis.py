@@ -24,6 +24,9 @@ import os
 
 import folium
 
+import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
+
 #chargement des données
 df_tranche = pd.read_csv('data/base_etablissement_par_tranche_effectif.csv')
 df_salaire = pd.read_csv('data/net_salary_per_town_categories.csv')
@@ -41,7 +44,7 @@ from IPython.core.interactiveshell import InteractiveShell
 InteractiveShell.ast_node_interactivity = "all"
 
 
-# In[2]:
+# In[8]:
 
 
 get_ipython().magic('qtconsole')
@@ -302,7 +305,7 @@ df_bbox_france = df_bbox_departements.groupby('dummy').agg({'min_x':{'min_x':'mi
 df_bbox_france.reset_index()
 
 
-# In[11]:
+# In[15]:
 
 
 #Plot the departements
@@ -328,7 +331,7 @@ map_departements.fit_bounds(bounds = [
 map_departements
 
 
-# In[17]:
+# In[16]:
 
 
 #Test style functions
@@ -379,7 +382,7 @@ map_departements
 
 # Distribution of firm sizes per departement
 
-# In[117]:
+# In[95]:
 
 
 #Create data for % in each firm size for each departement
@@ -388,6 +391,7 @@ df_dep_percentage = df_dep_percentage.rename(index = str,
                              columns = {'level_4':'firm_size_code',
                                         0:'value'})
 
+df_dep_percentage = df_dep_percentage[df_dep_percentage['firm_size_code'] != 'E14TST']
 
 df_dep_percentage = df_dep_percentage.groupby(["DEP", "firm_size_code"]).sum().loc[:,"value"].reset_index().merge(df_dep_percentage.groupby(["DEP"]).sum().loc[:,"value"].reset_index(),
       how = 'inner',
@@ -399,4 +403,41 @@ df_dep_percentage = df_dep_percentage.rename(index = str,
 
 df_dep_percentage["percentage"] = df_dep_percentage['value'] / df_dep_percentage['total']
 df_dep_percentage.head(10)
+
+df_dep_percentage.firm_size_code = df_dep_percentage.firm_size_code.astype("category")
+df_dep_percentage.firm_size_code = df_dep_percentage.firm_size_code.cat.reorder_categories(['E14TS0ND', 'E14TS1', 'E14TS6', 'E14TS10','E14TS20', 'E14TS50', 'E14TS100', 'E14TS200', 'E14TS500'])
+
+
+
+# In[119]:
+
+
+#To do: rather than have the numeric colour index map each to equally spaced values
+df_dep_colour_map = df_dep_percentage.DEP.drop_duplicates()
+df_dep_colour_map = df_dep_colour_map.reset_index()
+
+fig, ax = plt.subplots()
+ax.scatter(x =df_dep_percentage.firm_size_code,
+          y = df_dep_percentage.percentage,
+          s = 10000 * df_dep_percentage.value / np.sum(df_dep_percentage.value),
+          c = df_dep_percentage.merge(df_dep_colour_map)['index'])
+
+x_labels = ax.get_xticklabels()
+plt.setp(x_labels, rotation=90)
+
+ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: '{:.0%}'.format(y))) 
+
+ax.set(xlabel='Firm Size', 
+       ylabel='% of firms in departement',
+       title='Firm size distribution for each departement \n Departements are distinguished by colour')
+
+plt.show()
+
+
+# In[ ]:
+
+
+#The main difference is % of firms that are small. We would expect this to be an urban rural divide.
+#Let's see if that's the case.
+
 
