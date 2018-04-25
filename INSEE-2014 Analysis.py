@@ -27,6 +27,8 @@ import folium
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
+from sklearn.cluster import KMeans
+
 #chargement des données
 df_tranche = pd.read_csv('data/base_etablissement_par_tranche_effectif.csv')
 df_salaire = pd.read_csv('data/net_salary_per_town_categories.csv')
@@ -382,7 +384,7 @@ map_departements
 
 # Distribution of firm sizes per departement
 
-# In[95]:
+# In[136]:
 
 
 #Create data for % in each firm size for each departement
@@ -406,13 +408,14 @@ df_dep_percentage.head(10)
 
 df_dep_percentage.firm_size_code = df_dep_percentage.firm_size_code.astype("category")
 df_dep_percentage.firm_size_code = df_dep_percentage.firm_size_code.cat.reorder_categories(['E14TS0ND', 'E14TS1', 'E14TS6', 'E14TS10','E14TS20', 'E14TS50', 'E14TS100', 'E14TS200', 'E14TS500'])
+df_dep_percentage.firm_size_code.cat.as_ordered(inplace = True)
 
 
-
-# In[119]:
+# In[137]:
 
 
 #To do: rather than have the numeric colour index map each to equally spaced values
+#To do: why isn't this using the category order
 df_dep_colour_map = df_dep_percentage.DEP.drop_duplicates()
 df_dep_colour_map = df_dep_colour_map.reset_index()
 
@@ -434,10 +437,22 @@ ax.set(xlabel='Firm Size',
 plt.show()
 
 
-# In[ ]:
+# In[237]:
 
 
-#The main difference is % of firms that are small. We would expect this to be an urban rural divide.
-#Let's see if that's the case.
+#The main difference is % of firms that are small.
+#Let's cluster on this see if that's the case.
 
+df_cluster = df_dep_percentage
+df_cluster = df_cluster.firm_size_code.astype('str')
+df_cluster = df_dep_percentage.drop('value', axis = 1).set_index(['DEP', 'total', 'firm_size_code']).unstack()
+
+km_model = KMeans(2)
+
+km_model_fit = km_model.fit(df_cluster)
+km_model_prediction = km_model_fit.predict(df_cluster)
+
+df_results = pd.DataFrame({'DEP':df_dep_percentage.DEP.drop_duplicates(),
+                          'cluster':km_model_prediction})
+df_results
 
