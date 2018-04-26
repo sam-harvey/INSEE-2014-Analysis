@@ -46,7 +46,7 @@ from IPython.core.interactiveshell import InteractiveShell
 InteractiveShell.ast_node_interactivity = "all"
 
 
-# In[8]:
+# In[2]:
 
 
 get_ipython().magic('qtconsole')
@@ -293,7 +293,7 @@ df_bbox_departements["max_x"] = df_bbox_departements.bbox.apply(lambda x: x[2])
 df_bbox_departements["max_y"] = df_bbox_departements.bbox.apply(lambda x: x[3])
 
 
-# In[10]:
+# In[8]:
 
 
 # Create one bounding box for France
@@ -384,7 +384,7 @@ map_departements
 
 # Distribution of firm sizes per departement
 
-# In[136]:
+# In[10]:
 
 
 #Create data for % in each firm size for each departement
@@ -411,7 +411,7 @@ df_dep_percentage.firm_size_code = df_dep_percentage.firm_size_code.cat.reorder_
 df_dep_percentage.firm_size_code.cat.as_ordered(inplace = True)
 
 
-# In[137]:
+# In[11]:
 
 
 #To do: rather than have the numeric colour index map each to equally spaced values
@@ -437,7 +437,7 @@ ax.set(xlabel='Firm Size',
 plt.show()
 
 
-# In[237]:
+# In[12]:
 
 
 #The main difference is % of firms that are small.
@@ -455,4 +455,75 @@ km_model_prediction = km_model_fit.predict(df_cluster)
 df_results = pd.DataFrame({'DEP':df_dep_percentage.DEP.drop_duplicates(),
                           'cluster':km_model_prediction})
 df_results
+
+
+# In[89]:
+
+
+#need to join the clustering to the departement geoJson
+
+# type(json_departements['features'][0])
+
+# json_departements['features'][0].keys()
+
+# json_departements['features'][0]['properties']
+
+# df_geo[df_geo.numéro_département == '02']
+
+# json_departements['features'][0]['properties']['code']
+
+# json_departements['features'][0]['properties'].update({'cluster':(int(df_results[df_results.DEP == "02"]['cluster']))})
+
+# json_departements['features'][0]['properties']
+
+for i in range(len(json_departements['features'])):
+    dep_to_use = json_departements['features'][i]['properties']['code']
+    
+    json_departements['features'][i]['properties'].    update({'cluster':(int(df_results[df_results.DEP == dep_to_use]['cluster']))})
+
+
+# In[103]:
+
+
+def style_function(feature):
+    
+    if feature['properties']['cluster'] == 1:
+        fill_col = "#ffffff"
+    else:
+        fill_col = "#000000"
+    
+#     fill_col = if feature['properties']['cluster'] == 1:
+#         "#ffffff"
+#         else:
+#             '#000000'
+            
+    return {
+        'fillColor': fill_col,
+    }
+    
+
+map_departements = folium.Map(location=[48.864716, 2.349014])
+folium.GeoJson(data = json_departements,
+               name='features',
+               style_function = style_function
+              ).add_to(map_departements)
+
+map_departements
+
+
+# In[127]:
+
+
+# df_cluster.index.get_level_values(0)
+
+# df_results[df_results.cluster == 1]['DEP']
+
+# np.in1d(df_cluster.index.get_level_values(0),
+#        df_results[df_results.cluster == 1]['DEP'])
+
+df_cluster[np.in1d(df_cluster.index.get_level_values(0),
+       df_results[df_results.cluster == 1]['DEP'])].mean()
+
+df_cluster[np.in1d(df_cluster.index.get_level_values(0),
+       df_results[df_results.cluster == 0]['DEP'])].mean()
 
