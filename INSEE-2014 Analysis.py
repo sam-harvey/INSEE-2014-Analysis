@@ -26,6 +26,7 @@ import folium
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
+from matplotlib.colors import rgb2hex
 
 from sklearn.cluster import KMeans
 
@@ -46,7 +47,7 @@ from IPython.core.interactiveshell import InteractiveShell
 InteractiveShell.ast_node_interactivity = "all"
 
 
-# In[2]:
+# In[110]:
 
 
 get_ipython().magic('qtconsole')
@@ -307,7 +308,7 @@ df_bbox_france = df_bbox_departements.groupby('dummy').agg({'min_x':{'min_x':'mi
 df_bbox_france.reset_index()
 
 
-# In[15]:
+# In[9]:
 
 
 #Plot the departements
@@ -333,7 +334,7 @@ map_departements.fit_bounds(bounds = [
 map_departements
 
 
-# In[16]:
+# In[10]:
 
 
 #Test style functions
@@ -384,7 +385,7 @@ map_departements
 
 # Distribution of firm sizes per departement
 
-# In[10]:
+# In[11]:
 
 
 #Create data for % in each firm size for each departement
@@ -411,7 +412,7 @@ df_dep_percentage.firm_size_code = df_dep_percentage.firm_size_code.cat.reorder_
 df_dep_percentage.firm_size_code.cat.as_ordered(inplace = True)
 
 
-# In[11]:
+# In[12]:
 
 
 #To do: rather than have the numeric colour index map each to equally spaced values
@@ -437,7 +438,7 @@ ax.set(xlabel='Firm Size',
 plt.show()
 
 
-# In[12]:
+# In[183]:
 
 
 #The main difference is % of firms that are small.
@@ -447,7 +448,9 @@ df_cluster = df_dep_percentage
 df_cluster = df_cluster.firm_size_code.astype('str')
 df_cluster = df_dep_percentage.drop('value', axis = 1).set_index(['DEP', 'total', 'firm_size_code']).unstack()
 
-km_model = KMeans(2)
+n_clusters = 6
+
+km_model = KMeans(n_clusters)
 
 km_model_fit = km_model.fit(df_cluster)
 km_model_prediction = km_model_fit.predict(df_cluster)
@@ -457,24 +460,10 @@ df_results = pd.DataFrame({'DEP':df_dep_percentage.DEP.drop_duplicates(),
 df_results
 
 
-# In[89]:
+# In[184]:
 
 
 #need to join the clustering to the departement geoJson
-
-# type(json_departements['features'][0])
-
-# json_departements['features'][0].keys()
-
-# json_departements['features'][0]['properties']
-
-# df_geo[df_geo.numéro_département == '02']
-
-# json_departements['features'][0]['properties']['code']
-
-# json_departements['features'][0]['properties'].update({'cluster':(int(df_results[df_results.DEP == "02"]['cluster']))})
-
-# json_departements['features'][0]['properties']
 
 for i in range(len(json_departements['features'])):
     dep_to_use = json_departements['features'][i]['properties']['code']
@@ -482,23 +471,18 @@ for i in range(len(json_departements['features'])):
     json_departements['features'][i]['properties'].    update({'cluster':(int(df_results[df_results.DEP == dep_to_use]['cluster']))})
 
 
-# In[103]:
+# In[185]:
 
+
+cmap = plt.get_cmap(lut = n_clusters)
 
 def style_function(feature):
     
-    if feature['properties']['cluster'] == 1:
-        fill_col = "#ffffff"
-    else:
-        fill_col = "#000000"
-    
-#     fill_col = if feature['properties']['cluster'] == 1:
-#         "#ffffff"
-#         else:
-#             '#000000'
+    fill_col = rgb2hex(cmap(feature['properties']['cluster']))
             
     return {
         'fillColor': fill_col,
+        'fillOpacity': .9
     }
     
 
@@ -511,19 +495,61 @@ folium.GeoJson(data = json_departements,
 map_departements
 
 
-# In[127]:
+# In[74]:
 
 
-# df_cluster.index.get_level_values(0)
+#Means per cluster, and the departements included in each
+#Mayotte doesn't have a polygon in the shapefile
 
-# df_results[df_results.cluster == 1]['DEP']
+for i in df_results.cluster.unique():
+    print(
+        (i, 
+         df_geo[np.in1d(df_geo.numéro_département,
+               df_results[df_results.cluster == i]['DEP'])]['nom_département'].unique(),
+         df_cluster[np.in1d(df_cluster.index.get_level_values(0),
+       df_results[df_results.cluster == i]['DEP'])].mean()
+        )
+    )
 
-# np.in1d(df_cluster.index.get_level_values(0),
-#        df_results[df_results.cluster == 1]['DEP'])
 
-df_cluster[np.in1d(df_cluster.index.get_level_values(0),
-       df_results[df_results.cluster == 1]['DEP'])].mean()
+# How about population overlayed on the map?
 
-df_cluster[np.in1d(df_cluster.index.get_level_values(0),
-       df_results[df_results.cluster == 0]['DEP'])].mean()
+# In[156]:
+
+
+#Create the population per departement
+
+#Careful there are leading 0s in df_tranche
+df_tranche.CODGEO.unique()
+df_population.CODGEO.unique()
+
+df_tranche_popn = df_tranche.loc[:,['CODGEO', 'DEP']]
+df_tranche_popn["CODGEO"] = [i.strip("0") for i in df_tranche_popn["CODGEO"]]
+
+df_tranche_popn["CODGEO"].unique()
+
+df_popn_codgeo = df_population.groupby("CODGEO").      agg({"NB":"sum"}).      reset_index()
+df_popn_codgeo['CODGEO'] = df_popn_codgeo['CODGEO'].astype('str')
+
+df_tranche_popn = df_tranche_popn.merge(df_popn_codgeo, on = "CODGEO").groupby("DEP").agg({"NB":"sum"})
+
+df_tranche_popn = df_tranche_popn.reset_index()
+
+
+# In[181]:
+
+
+#Actually rather than joining to the JSON features we can use choropleth
+
+map_departements = folium.Map(location=[48.864716, 2.349014])
+
+map_departements.choropleth(
+    data = df_tranche_popn, 
+                      geo_data = json_departements, 
+                      columns = ["DEP", "NB"],
+                      key_on = 'feature.properties.code',
+                      fill_color='YlGn',
+                      fill_opacity=0.9
+                           )
+map_departements
 
