@@ -47,7 +47,7 @@ from IPython.core.interactiveshell import InteractiveShell
 InteractiveShell.ast_node_interactivity = "all"
 
 
-# In[110]:
+# In[2]:
 
 
 get_ipython().magic('qtconsole')
@@ -385,7 +385,7 @@ map_departements
 
 # Distribution of firm sizes per departement
 
-# In[11]:
+# In[10]:
 
 
 #Create data for % in each firm size for each departement
@@ -412,7 +412,7 @@ df_dep_percentage.firm_size_code = df_dep_percentage.firm_size_code.cat.reorder_
 df_dep_percentage.firm_size_code.cat.as_ordered(inplace = True)
 
 
-# In[12]:
+# In[11]:
 
 
 #To do: rather than have the numeric colour index map each to equally spaced values
@@ -438,29 +438,41 @@ ax.set(xlabel='Firm Size',
 plt.show()
 
 
-# In[183]:
+# In[61]:
 
 
 #The main difference is % of firms that are small.
 #Let's cluster on this see if that's the case.
 
 df_cluster = df_dep_percentage
-df_cluster = df_cluster.firm_size_code.astype('str')
-df_cluster = df_dep_percentage.drop('value', axis = 1).set_index(['DEP', 'total', 'firm_size_code']).unstack()
 
-n_clusters = 6
+#Drop the departements which aren't included in the GeoJson
+list_geo_deps = []
+
+for i in json_departements['features']:
+    list_geo_deps.append(i['properties']['code'])
+
+df_cluster = df_cluster[np.in1d(df_cluster.DEP,
+                                list_geo_deps)]
+
+df_result_dep = df_cluster.DEP.drop_duplicates()
+
+# df_cluster.firm_size_code = df_cluster.firm_size_code.astype('str')
+df_cluster = df_cluster.drop('value', axis = 1).set_index(['DEP', 'total', 'firm_size_code']).unstack()
+
+n_clusters = 4
 
 km_model = KMeans(n_clusters)
 
 km_model_fit = km_model.fit(df_cluster)
 km_model_prediction = km_model_fit.predict(df_cluster)
 
-df_results = pd.DataFrame({'DEP':df_dep_percentage.DEP.drop_duplicates(),
+df_results = pd.DataFrame({'DEP':df_result_dep,
                           'cluster':km_model_prediction})
 df_results
 
 
-# In[184]:
+# In[62]:
 
 
 #need to join the clustering to the departement geoJson
@@ -471,7 +483,7 @@ for i in range(len(json_departements['features'])):
     json_departements['features'][i]['properties'].    update({'cluster':(int(df_results[df_results.DEP == dep_to_use]['cluster']))})
 
 
-# In[185]:
+# In[63]:
 
 
 cmap = plt.get_cmap(lut = n_clusters)
@@ -495,7 +507,7 @@ folium.GeoJson(data = json_departements,
 map_departements
 
 
-# In[74]:
+# In[64]:
 
 
 #Means per cluster, and the departements included in each
@@ -514,7 +526,7 @@ for i in df_results.cluster.unique():
 
 # How about population overlayed on the map?
 
-# In[156]:
+# In[65]:
 
 
 #Create the population per departement
@@ -536,7 +548,7 @@ df_tranche_popn = df_tranche_popn.merge(df_popn_codgeo, on = "CODGEO").groupby("
 df_tranche_popn = df_tranche_popn.reset_index()
 
 
-# In[181]:
+# In[66]:
 
 
 #Actually rather than joining to the JSON features we can use choropleth
@@ -553,3 +565,106 @@ map_departements.choropleth(
                            )
 map_departements
 
+
+# In[106]:
+
+
+#What about salary
+
+#SNHM14 is mean net salary 
+
+df_salaire_dep = df_popn_codgeo.merge(df_salaire.loc[:, ["CODGEO", "SNHM14"]], on = "CODGEO").merge(df_tranche.loc[:, ["CODGEO", "DEP"]], on = "CODGEO")
+
+df_salaire_dep = df_salaire_dep.merge(df_salaire_dep.groupby("DEP").agg({"NB":"sum"}).reset_index().rename({"NB":"NB_DEP"}, axis = 1), on = "DEP")
+
+df_salaire_dep["DEP_POPN_PROP"] = df_salaire_dep["NB"] / df_salaire_dep["NB_DEP"]
+
+df_salaire_dep["SALAIRE_AVG"] = df_salaire_dep["SNHM14"] * df_salaire_dep["DEP_POPN_PROP"]
+
+df_salaire_dep = df_salaire_dep.groupby("DEP").agg({"SALAIRE_AVG":"sum"}).reset_index()
+
+df_salaire_dep
+
+
+# In[109]:
+
+
+#Show me the money
+
+map_departements = folium.Map(location=[48.864716, 2.349014])
+
+map_departements.choropleth(
+    data = df_salaire_dep, 
+                      geo_data = json_departements, 
+                      columns = ["DEP", "SALAIRE_AVG"],
+                      key_on = 'feature.properties.code',
+                      fill_color='YlGn',
+                      fill_opacity=0.7
+                           )
+map_departements
+
+
+# In[117]:
+
+
+def salaire_viz_map(var_str):
+    assert var_str in df_salaire.columns
+#     assert  df_salaire.dtypes[var_str] is numeric
+    
+    df_salaire_dep = df_popn_codgeo.    merge(df_salaire.loc[:, ["CODGEO", var_str]], on = "CODGEO").    merge(df_tranche.loc[:, ["CODGEO", "DEP"]], on = "CODGEO")
+
+    df_salaire_dep = df_salaire_dep.    merge(df_salaire_dep.groupby("DEP").agg({"NB":"sum"}).reset_index().rename({"NB":"NB_DEP"}, axis = 1), on = "DEP")
+
+    df_salaire_dep["DEP_POPN_PROP"] = df_salaire_dep["NB"] / df_salaire_dep["NB_DEP"]
+
+    df_salaire_dep["SALAIRE_AVG"] = df_salaire_dep[var_str] * df_salaire_dep["DEP_POPN_PROP"]
+
+    df_salaire_dep = df_salaire_dep.groupby("DEP").agg({"SALAIRE_AVG":"sum"}).reset_index()
+    
+    map_departements = folium.Map(location=[48.864716, 2.349014])
+
+    map_departements.choropleth(
+        data = df_salaire_dep, 
+        geo_data = json_departements, 
+        columns = ["DEP", "SALAIRE_AVG"],
+        key_on = 'feature.properties.code',
+        fill_color='YlGn',
+        fill_opacity=0.7)
+    
+    return(map_departements)
+
+
+# In[119]:
+
+
+#Best place to be an executive?
+map_salaire_SNHMC14 = salaire_viz_map("SNHMC14")
+map_salaire_SNHMC14
+
+
+# In[120]:
+
+
+#Best place to be a dude?
+map_salaire_SNHMH14 = salaire_viz_map("SNHMH14") 
+map_salaire_SNHMH14
+
+
+# In[121]:
+
+
+#Best place to be young
+
+map_salaire_SNHM1814 = salaire_viz_map("SNHM1814") 
+map_salaire_SNHM1814
+
+
+# In[123]:
+
+
+#Best place to be old?
+map_salaire_SNHM5014  = salaire_viz_map("SNHM5014") 
+map_salaire_SNHM5014 
+
+
+# Paris is always the answer.
